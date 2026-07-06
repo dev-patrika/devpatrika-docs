@@ -15,10 +15,12 @@ This phase builds the foundational storage engine, collects raw feeds, and runs 
   * Define tables for `NewsItem`, `WikiEntry`, and `GitHubRadar`.
   * Establish API health-check (`GET /api/health`).
 
-### Milestone 1.2: Feed Ingestion Services (`v0.2.0-alpha`)
-* **Objective**: Automate content collection from developer sources.
+### Milestone 1.2: Feed Ingestion Services & Document Loaders (`v0.2.0-alpha`)
+* **Objective**: Automate content collection and document parsing from developer sources.
 * **Backend Deliverables**:
-  * Write APIs/scrapers for Hacker News, Dev.to, GitHub Trending, and arXiv.
+  * Implement **LangChain Document Loaders** for supported data sources (Hacker News Firebase API, Dev.to REST API, GitHub Trending, and arXiv search API).
+  * Build scrapers to ingest raw content from developer pages.
+  * Store timestamps and **freshness metadata** (e.g. "Updated today", "2 hours ago") for all ingested content.
   * Implement background scheduling to periodically pull new stories.
   * Integrate duplicate-prevention logic using URL hash checks.
 
@@ -26,8 +28,16 @@ This phase builds the foundational storage engine, collects raw feeds, and runs 
 * **Objective**: Process raw stories into structured summaries and tags using LLMs.
 * **Backend Deliverables**:
   * Create LangChain `RunnableSequence` pipelines.
+  * **Text Splitters**: Split long articles/documents into clean semantic chunks before embedding and summarization.
+  * **Prompt Templates**: Create reusable Prompt Templates for summarization, classification, and wiki generation.
+  * **Structured Output Parsers**: Parse LLM responses using structured output schemas (Pydantic / JSON schema).
   * **Classifier**: Classify stories into *AI, Web Dev, Cybersecurity, Startups, Open Source, Cloud/DevOps*.
-  * **Summarizer**: Generate bullet-point summaries and credit sources.
+  * **Summarizer**: Generate bullet-point summaries, preserve original article metadata, and maintain **source attribution** throughout the pipeline.
+  * **Tool Calling**: Implement LangChain Tool Calling capabilities for:
+    * **News Search Tool**: Find past stories locally.
+    * **GitHub Search Tool**: Query repositories and issues.
+    * **URL Summarizer Tool**: Scrape and summarize linked pages on-the-fly.
+  * **Simple Single-Purpose Agents**: Build lightweight LangChain agents (non-LangGraph) for automated summarization and wiki definition creation.
   * Implement failover switching (e.g., fall back from Groq to Gemini if rate-limited).
 
 ### Milestone 1.4: Dev Wiki & Local Chroma Vector DB (`v0.4.0-alpha`)
@@ -35,6 +45,7 @@ This phase builds the foundational storage engine, collects raw feeds, and runs 
 * **Backend Deliverables**:
   * Integrate local Chroma DB to index Wiki definitions.
   * **Wiki Curator Chain**: Extract trending keywords from the news, write entries (definition, importance, references), and store/embed them.
+  * Build semantic **Retrievers** for Dev Wiki search.
   * Build unified search API (`GET /api/search`) querying SQLite (news) and Chroma (wiki) in parallel.
 
 ### Milestone 1.5: Model Router & Basic Chat endpoint (`v0.5.0-beta`)
@@ -55,13 +66,20 @@ Once the database and linear chains are stable, we will transition to stateful, 
   * Set up LangGraph state schemas and stateful nodes.
   * **Daily Brief Agent**: Autonomous fetch -> dedupe -> summarize -> classify graph.
   * **Wiki Curator Agent**: Manage trending term definitions and resolve wiki conflicts.
-  * **Research Digest Agent**: Simplify arXiv PDFs.
+  * **Research Digest Agent**: Simplify arXiv PDFs using advanced text parsing.
   * **Explain Why Agent**: Pull github PRs and documentation to explain news context.
 
 ### Milestone 2.2: MCP Integration & Human Checkpoints (`v0.7.0-beta`)
 * **Objective**: Standardize agent tools and insert editorial approval gates.
 * **Backend Deliverables**:
-  * Build Model Context Protocol (MCP) server endpoints for tools (News search, GitHub lookup, Web scraper).
+  * Build Model Context Protocol (MCP) server endpoints for tools.
+  * Phase 2 Tool Integrations:
+    * **Research Paper Tool**: Deeper research search.
+    * **YouTube Transcript Tool**: Parse and summarize video transcripts.
+    * **Documentation Search Tool**: Index and search third-party dev docs.
+    * **Bookmark Manager**: Manage workspaces.
+    * **Personal Notes Tool**: Persist notes.
+    * **Calculator** & **Time Utility Tools**: Helper modules.
   * Implement **Human-in-the-Loop** approval states in the graph, saving state to SQLite before publishing content.
   * Configure persistent SQLite-backed graph checkpointers.
 
@@ -85,4 +103,6 @@ This phase focuses on quality, optimization, tracing, cost control, and producti
 * **Backend Deliverables**:
   * Complete API schemas & documentation.
   * Build CORS configs and api rate limits.
+  * **AI Disclaimer**: Add AI-generated content disclaimer metadata inside every API response.
+  * **Editorial Guidelines**: Document editorial verification guidelines for verifying and correcting AI-generated summaries.
   * Write Docker files and setup guides.

@@ -8,10 +8,10 @@ This document serves as the master blueprint and release roadmap for the **Dev P
 
 ### 1. Database Schema & Storage System
 * **SQLite (Relational Database)**: Stores structured metadata, news items, and workspaces.
-  * `news_items`: `id` (UUID), `title`, `url`, `summary`, `category` (AI, Web Dev, Cybersecurity, Startups, Open Source, Cloud/DevOps), `source` (Hacker News, Dev.to, GitHub Trending, arXiv), `published_at` (datetime), `created_at` (datetime), `raw_content` (text).
+  * `news_items`: `id` (UUID), `title`, `url`, `summary`, `category` (AI, Web Dev, Cybersecurity, Startups, Open Source, Cloud/DevOps), `source` (Hacker News, Dev.to, GitHub Trending, arXiv), `published_at` (datetime), `created_at` (datetime), `raw_content` (text), `freshness_tag` (text - e.g., "2 hours ago", "Updated today").
   * `wiki_entries`: `id` (UUID), `term`, `definition`, `why_trending`, `related_links` (JSON array), `created_at`, `updated_at`.
   * `github_radar`: `id` (UUID), `repo_name`, `repo_url`, `description`, `why_it_matters_summary`, `stars_count`, `created_at`.
-  * `personal_notes`: `id` (UUID), `title`, `content`, `created_at`, `updated_at`. (Phase 2: tied to `user_id`).
+  * `personal_notes`: `id` (UUID), `title`, `content`, `created_at`, `updated_at`.
 * **Chroma DB (Vector Database)**: Enables semantic vector search over developer terms, tools, and companies.
   * Documents: Wiki entry definition + why it's trending.
   * Metadata: `term`, `wiki_entry_id`, `category`.
@@ -58,27 +58,36 @@ graph TD
   * Initial health API endpoint (`GET /api/health`) and basic API router registry.
   * Project initialization with Git, default `.gitignore`, and `requirements.txt`.
 
-### 📡 `v0.2.0-alpha` — News Ingestion Engine
-* **Goal**: Connect target RSS and REST feeds to extract raw technical news and store them locally.
+### 📡 `v0.2.0-alpha` — News Ingestion & Document Loaders
+* **Goal**: Connect target RSS and REST feeds, parse documents using standard frameworks, and extract raw technical news with timestamps.
 * **Backend Deliverables**:
-  * Ingestion client modules inside `app/services/ingestion/`:
-    * **Hacker News Client**: Fetch top stories using the HN Firebase API.
-    * **Dev.to Client**: Fetch latest articles using tags like `webdev`, `ai`, `security`, `cloud`.
-    * **arXiv Client**: Query for computer science and AI preprints.
-    * **GitHub Trending Client**: Extract daily trending repository URLs, descriptions, and star counts.
+  * Ingestion client modules inside `app/services/ingestion/` using **LangChain Document Loaders**:
+    * **Hacker News Loader**: Fetch top/new stories via Hacker News Firebase API.
+    * **Dev.to Loader**: Fetch latest articles using tag parameters.
+    * **arXiv Loader**: Fetch new computer science and machine learning preprints.
+    * **GitHub Trending Loader**: Fetch trending repo stats.
   * Setup background task schedulers utilizing FastAPI's `BackgroundTasks` to automatically poll feeds every 6 hours.
+  * Store timestamps and **freshness metadata** (e.g., "Updated today", "2 hours ago") for all ingested content.
   * Duplicate detection logic to ensure identical URLs are not ingested twice.
 
-### 🧠 `v0.3.0-alpha` — LangChain core Processing Pipeline
-* **Goal**: Apply LLMs to clean, summarize, and categorize ingested raw articles dynamically.
+### 🧠 `v0.3.0-alpha` — LangChain Core Processing & Tools
+* **Goal**: Configure LLM templates, parsers, and custom tools to clean, summarize, and categorize ingested raw articles.
 * **Backend Deliverables**:
-  * Integration of LangChain Runnable interfaces (`RunnableSequence`) mapping raw content to structured Pydantic objects.
+  * Integration of LangChain Runnable interfaces (`RunnableSequence`) mapping raw content to structured output.
+  * **Text Splitters**: Split long articles/documents into semantic chunks before embedding and summarization.
+  * **Prompt Templates**: Create reusable templates for news summarization, category classification, and wiki generation.
+  * **Structured Output Parsers**: Parse LLM responses using structured output schemas (Pydantic / JSON schema).
   * **Classifier Component**: Structured output parser assigning one of the six categories (AI, Web Dev, Cybersecurity, Startups, Open Source, Cloud/DevOps).
-  * **Summarizer Component**: Extract key insights, title refinements, and generate a concise 3-bullet summary with source attribution.
+  * **Summarizer Component**: Generate bullet-point summaries, preserve original article metadata, and maintain **source attribution** throughout the pipeline.
+  * **Initial LangChain Tools**:
+    * **News Search Tool**: Semantic search over local SQLite articles.
+    * **GitHub Search Tool**: Search repositories and issues.
+    * **URL Summarizer Tool**: Scrape and summarize linked pages on-the-fly.
+  * **Simple Single-Purpose Agents**: Build lightweight LangChain agents (not LangGraph yet) for automated news summarization and wiki definition creation.
   * LLM Provider fallback logic (falls back to Gemini if Groq API rate-limit errors are encountered).
   * Automatic updating of the database with the generated summaries and categories.
 
-### 📖 `v0.4.0-alpha` — Dev Wiki & Semantic Vector Search
+### 📖 `v0.4.0-alpha` — Dev Wiki & Semantic Search
 * **Goal**: Auto-generate Wiki entries for new tech terms and build the vector database search layer.
 * **Backend Deliverables**:
   * Local Chroma DB directory setup and integration as a LangChain vector store client.
@@ -86,6 +95,7 @@ graph TD
     * LLM chain that processes incoming daily summaries and identifies new/trending terms, companies, or tools.
     * Generator chain that writes a description, "Why it's trending" paragraph, and scrapes/attaches reference links.
   * Script to vectorize and upsert Wiki pages into Chroma DB.
+  * Build semantic **Retrievers** for Dev Wiki search.
   * Endpoint `GET /api/search` which triggers a parallel retrieval: SQL semantic matches for news and Vector Cosine Similarity lookup for wiki entries.
 
 ### 🔀 `v0.5.0-beta` — Model Router & Conversational API
@@ -101,18 +111,21 @@ graph TD
 * **Backend Deliverables**:
   * Setup LangGraph environment.
   * **Daily Brief Agent**: A graph orchestrating: Fetching -> Deduplication -> Summarization -> Classification -> Publishing state updates.
-  * **Wiki Curator Agent**: Detects trending terms, updates existing pages if terms evolve, and flags potential knowledge conflicts.
-  * **Research Digest Agent**: Decodes dense arXiv PDFs and translates them into non-technical developer updates.
+  * **Wiki Curator Agent**: Manage trending term definitions and resolve wiki conflicts.
+  * **Research Digest Agent**: Ingest arXiv PDFs, split chunks, and translate them into non-technical developer updates.
   * **Explain Why Agent**: Resolves deep-dive queries by executing tools to fetch GitHub PRs, external API documentations, and historical news.
 
 ### 🔌 `v0.7.0-beta` — MCP Tools & Human-in-the-Loop moderation
 * **Goal**: Support Model Context Protocol tool definitions and strict review checkpoints.
 * **Backend Deliverables**:
-  * Build MCP server configurations to support standardized tools:
-    * **News Search Tool**: Semantic news search.
-    * **GitHub Search Tool**: Look up issues and PRs.
-    * **URL Summarizer**: Parse any developer link on the fly.
-    * **Documentation Search Tool**: Scrape and index external framework docs.
+  * Build MCP server configurations to support standardized tools.
+  * Phase 2 Tool Integrations:
+    * **Research Paper Tool**: Deep academic search.
+    * **YouTube Transcript Tool**: Parse and summarize video transcripts.
+    * **Documentation Search Tool**: Index and search third-party dev docs.
+    * **Bookmark Manager**: Manage workspaces.
+    * **Personal Notes Tool**: Persist notes.
+    * **Calculator** & **Time Utility Tools**: Helper modules.
   * Define **Human-in-the-Loop** approval states in LangGraph:
     * Interrupted execution saving state to SQLite for human authorization before news publishing or wiki edits are committed.
   * Configure persistent SQLite-backed checkpointers for cross-run memory.
@@ -132,6 +145,8 @@ graph TD
 * **Backend Deliverables**:
   * Swagger documentation finalized.
   * FastAPI CORS middleware restricted and API rate limiter using slowapi.
+  * **AI Disclaimer**: Add AI-generated content disclaimer metadata inside every API response.
+  * **Editorial Guidelines**: Document editorial verification guidelines for verifying and correcting AI-generated summaries.
   * Production deployment guide with Docker, Docker Compose, and environment parameters.
 
 ---
