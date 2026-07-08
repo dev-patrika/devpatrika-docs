@@ -1,6 +1,6 @@
 # Dev Patrika: Backend Engine Overview
 
-This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v0.4.0-alpha`.
+This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v0.5.0-beta`.
 
 ---
 
@@ -96,6 +96,29 @@ graph TD
 * Prompts the LLM (using the fallback chain) to extract key new developer terms or libraries.
 * Automatically creates wiki definitions for missing concepts and indexes them in Chroma DB, building a self-expanding technical glossary.
 
+### 9. Trending Topics Engine
+* Scans news updates processed in the last 7 days and tallies keyword references of all active Wiki terms.
+* Computes trajectory indicators (`"up"`, `"down"`, or `"stable"`) based on previous frequency counts and saves them in the `trending_topics` table.
+
+### 10. Weekly AI Reports Compiler
+* Gathers the past week's top stories, trending github projects, and topics count logs.
+* Employs the LLM chain to compile a professional, editorial developer digest report in markdown, which is saved in `weekly_reports`.
+
+### 11. Conversational Memory & Persistent Chatbot
+* Connects the `/api/ai/chat` endpoint to a persistent SQLite `chat_messages` table mapping message threads to user session IDs.
+* Pulls current dialogue logs dynamically, maintaining memory context across multiple message turns.
+
+### 12. Context Retrieval & Structured Citation Engine
+* Executes parallel semantic retrievals on Chroma collections (`wiki_entries` and `news_items`).
+* Directs the LLM router to ground answers in the fetched materials, forcing numeric references (like `[1]`, `[2]`), and returns a list of verified clickable URLs in the JSON API payload.
+
+### 13. Technology Evolution Timelines
+* Dynamically compiles chronological developmental phases (Announcement ➔ Adoption ➔ Production ➔ Growth) for any technical term using database references and parametric model intelligence.
+
+### 14. Related Articles Recommendations
+* Enables semantic recommender widgets on articles.
+* Queries vector similarity indexes in Chroma to fetch 3 semantically close articles for every news item.
+
 ---
 
 ## 🔌 API Endpoints Summary
@@ -110,4 +133,11 @@ graph TD
 | **GET** | `/api/wiki` | Returns list of concept definitions with autocomplete query support. | Dev Wiki |
 | **GET** | `/api/wiki/{term}` | Fetch case-insensitive wiki entries. | Dev Wiki |
 | **POST** | `/api/wiki/generate` | Dispatch LangChain worker to generate concept definitions. | Dev Wiki |
+| **GET** | `/api/wiki/{term}/timeline` | Generate chronological evolution timeline for a tech term. | Dev Wiki |
 | **GET** | `/api/search` | Unified parallel search querying news & repos (SQL) and wiki concepts (Chroma). | Search |
+| **GET** | `/api/news/{news_id}/related` | Retrieve semantically related news articles. | News |
+| **GET** | `/api/reports/weekly` | Retrieve historical list of weekly reports. | Reports |
+| **GET** | `/api/reports/weekly/{report_id}` | Retrieve details of a specific weekly report. | Reports |
+| **POST** | `/api/reports/weekly/compile` | Manually compile a new weekly developer report. | Reports |
+| **GET** | `/api/ai/models` | Retrieve lists of supported active LLM models. | AI Engine |
+| **POST** | `/api/ai/chat` | Conversational RAG chatbot with history memory and citations. | AI Engine |

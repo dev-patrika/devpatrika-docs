@@ -98,13 +98,16 @@ graph TD
   * Build semantic **Retrievers** for Dev Wiki search.
   * Endpoint `GET /api/search` which triggers a parallel retrieval: SQL semantic matches for news and Vector Cosine Similarity lookup for wiki entries.
 
-### 🔀 `v0.5.0-beta` — Model Router & Conversational API
-* **Goal**: Build the runtime LLM switcher and baseline chat assistant configuration.
+### 🔀 `v0.5.0-beta` — Model Router, Conversational Assistant, & Intelligence Engines [COMPLETED]
+* **Goal**: Build the runtime LLM router, stateful conversational chat assistant with memory, and key analytical intelligence engines.
 * **Backend Deliverables**:
-  * Model Router API endpoint (`GET /api/ai/models` and router orchestration):
-    * Switches dynamically between **Gemini** (Google), **Llama/Mixtral** (via Groq), and **Hugging Face** endpoints.
-  * First implementation of `POST /api/ai/chat` utilizing LangChain `ConversationChain` with memory, capable of processing simple Q&A.
-  * Endpoints supporting localStorage state (fetching customized feeds based on user interest tags).
+  * **Model Router API** (`GET /api/ai/models`): Returns lists of supported model runtimes (Google `gemini-2.5-flash` or Groq `openai/gpt-oss-120b`, `qwen/qwen3.6-27b`).
+  * **RAG Conversational Assistant** (`POST /api/ai/chat`): Multi-turn chatbot with database-backed persistent dialogue state memory (`chat_messages` table).
+  * **Citation Engine**: Automatically extracts references used from document inputs and yields structured JSON mappings with clickable links.
+  * **Trending Topics Analyzer**: Calculates term mention frequencies in recent news, updating trend vector directions (`"up"`, `"down"`, `"stable"`).
+  * **Weekly AI Reports**: Aggregates news, repos, and trends logs to compile editorial markdown tech digests.
+  * **Related Articles Recommender**: Queries dual Chroma collections using vector similarity distance to yield closely related news recommendations.
+  * **Technology Timeline Stage compiler**: Constructs 4-phase chronological progressions (Origin ➔ Adoption ➔ Production ➔ Growth) from local references.
 
 ### 🕸️ `v0.6.0-beta` — LangGraph Multi-Agent Workflows
 * **Goal**: Replace linear chains with stateful, loop-capable agent workflows.
