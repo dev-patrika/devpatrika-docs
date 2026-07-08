@@ -78,7 +78,7 @@ graph TD
 
 ### 5. Multi-Provider LLM Fallback (Failover Engine)
 * Uses native LangChain model fallbacks to guarantee uptime:
-  * **Primary Model**: Groq (`llama3-70b-8192`).
+  * **Primary Model**: Groq (`openai/gpt-oss-120b`).
   * **Secondary Backup**: Google Gemini (`gemini-2.5-flash`).
   * If the primary model encounters rate limits, timeouts, or authentication issues, it fails over to the backup instantly and silently.
 
