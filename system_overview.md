@@ -1,6 +1,6 @@
 # Dev Patrika: Backend Engine Overview
 
-This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v0.4.0-alpha`.
+This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v0.5.0-beta`.
 
 ---
 
@@ -110,4 +110,11 @@ graph TD
 | **GET** | `/api/wiki` | Returns list of concept definitions with autocomplete query support. | Dev Wiki |
 | **GET** | `/api/wiki/{term}` | Fetch case-insensitive wiki entries. | Dev Wiki |
 | **POST** | `/api/wiki/generate` | Dispatch LangChain worker to generate concept definitions. | Dev Wiki |
+| **GET** | `/api/wiki/{term}/timeline` | Generate chronological evolution timeline for a tech term. | Dev Wiki |
 | **GET** | `/api/search` | Unified parallel search querying news & repos (SQL) and wiki concepts (Chroma). | Search |
+| **GET** | `/api/news/{news_id}/related` | Retrieve semantically related news articles. | News |
+| **GET** | `/api/reports/weekly` | Retrieve historical list of weekly reports. | Reports |
+| **GET** | `/api/reports/weekly/{report_id}` | Retrieve details of a specific weekly report. | Reports |
+| **POST** | `/api/reports/weekly/compile` | Manually compile a new weekly developer report. | Reports |
+| **GET** | `/api/ai/models` | Retrieve lists of supported active LLM models. | AI Engine |
+| **POST** | `/api/ai/chat` | Conversational RAG chatbot with history memory and citations. | AI Engine |
