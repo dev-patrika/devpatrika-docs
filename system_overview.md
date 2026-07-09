@@ -119,6 +119,11 @@ graph TD
 * Enables semantic recommender widgets on articles.
 * Queries vector similarity indexes in Chroma to fetch 3 semantically close articles for every news item.
 
+### 15. Premium Markdown & UI Curation Engine
+* Employs custom React parser modules to translate structured Markdown (headers, lists, bold/italic inline tags, dividers, code blocks, and matrices) into premium web UI components.
+* Automatically converts unformatted milestone charts into clean, tabular grids under evolution timelines and weekly digests.
+* Dynamically normalizes all external links (Wiki references, GitHub redirects) to enforce absolute protocols (`https://`), preventing local path breakage and ensuring seamless routing.
+
 ---
 
 ## 🔌 API Endpoints Summary
@@ -127,9 +132,11 @@ graph TD
 |:---|:---|:---|:---|
 | **GET** | `/api/health` | Service health status check. | System |
 | **GET** | `/api/news` | Retrieve daily news feeds with category, query, and limit filters. | News |
+| **GET** | `/api/news/{news_id}` | Retrieve details of a single news article by ID. | News |
 | **POST** | `/api/news/ingest` | Triggers background crawlers and initiates LLM processing. | News |
 | **POST** | `/api/news/process` | Processes pending raw items in the DB via AI pipeline. | News |
 | **GET** | `/api/github/trending` | Returns stored repository radar with AI summaries. | GitHub Radar |
+| **GET** | `/api/github/repo/{repo_id}` | Fetch details of a single trending repository by ID. | GitHub Radar |
 | **GET** | `/api/wiki` | Returns list of concept definitions with autocomplete query support. | Dev Wiki |
 | **GET** | `/api/wiki/{term}` | Fetch case-insensitive wiki entries. | Dev Wiki |
 | **POST** | `/api/wiki/generate` | Dispatch LangChain worker to generate concept definitions. | Dev Wiki |
