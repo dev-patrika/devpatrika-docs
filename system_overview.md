@@ -148,3 +148,25 @@ graph TD
 | **POST** | `/api/reports/weekly/compile` | Manually compile a new weekly developer report. | Reports |
 | **GET** | `/api/ai/models` | Retrieve lists of supported active LLM models. | AI Engine |
 | **POST** | `/api/ai/chat` | Conversational RAG chatbot with history memory and citations. | AI Engine |
+
+---
+
+## ⚙️ Recent Backend Updates & Enhancements (v0.5.1-patch)
+
+The backend engine has been upgraded with the following structural improvements:
+
+### 1. Robust API Failover Handling
+* **Broad Exception Coverage**: Updated the primary Groq LLM chain wrapper's `with_fallbacks` configuration in [llm.py](file:///d:/Dev-Patrika/Backend/app/services/processing/llm.py) to catch `Exception` instead of default narrowing. This guarantees silent, immediate failover to Google Gemini on any Groq network timeout, authorization failure, or API rate limit event.
+
+### 2. Conversational Model List Cleanup
+* **Dropdown Selection Optimization**: Removed the Hugging Face `mistral-7b-instruct` model from the active choices list in [ai.py](file:///d:/Dev-Patrika/Backend/app/routers/ai.py).
+* **LangChain Integration**: Kept backend resolution support in [chat_service.py](file:///d:/Dev-Patrika/Backend/app/services/chat/chat_service.py) via `HuggingFaceEndpoint` (with Gemini as fallback if token/credentials are missing) to maintain backwards compatibility.
+
+### 3. Rate-Limit Recovery & Batch Processing Chunking
+* **Batch Sequencing**: Transitioned parallel asynchronous gathers in [pipeline.py](file:///d:/Dev-Patrika/Backend/app/services/processing/pipeline.py) (for news and repositories processing) to sequential batches of size 5 with a 2-second cooldown pause.
+* **Auto-Retry & Backoff**: Added active exception catching for `429` (Rate Limit) errors. When rate-limited, the system suspends execution for 120 seconds before attempting a retry, avoiding pipeline crashes during scheduled tasks.
+* **Circuit Breaker Design**: Added a maximum retry threshold. If retries fail twice, the process logs the traceback and continues with the remaining items instead of crashing the scheduler.
+
+### 4. Vector Embedding Quota Optimization
+* **Pre-Embedding Duplicate Verification**: Integrated database checking (`db.get(ids=[str(item.id)])`) in [chroma_service.py](file:///d:/Dev-Patrika/Backend/app/services/vectorstore/chroma_service.py) to check if an item's embedding exists in the Chroma collection before invoking Google's `gemini-embedding-2` API. This drastically reduces API quota consumption during bulk synchronizations.
+
