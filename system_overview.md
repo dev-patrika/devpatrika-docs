@@ -1,12 +1,12 @@
 # Dev Patrika: Backend Engine Overview
 
-This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v0.5.0-beta`.
+This document provides a professional reference summary of the **Dev Patrika** backend engine architecture, capabilities, and API endpoints implemented up to `v2.0`.
 
 ---
 
 ## 🏗️ System Architecture
 
-Dev Patrika's backend is a modular developer intelligence engine built using **FastAPI**, **SQLModel (SQLAlchemy)**, and **LangChain**. The system combines a relational storage layer (**SQLite**) for structured records and a vector storage layer (**Chroma DB**) for semantic conceptual lookups.
+Dev Patrika's backend is a modular developer intelligence engine built using **FastAPI**, **SQLModel (SQLAlchemy)**, **LangChain**, and **LangGraph**. The system uses **Neon (Postgres + pgvector)** as a unified storage layer — relational tables for structured records and pgvector indexes for semantic vector lookups. All AI pipelines are orchestrated as **LangGraph StateGraphs** for traceability and observability via LangSmith.
 
 ```mermaid
 graph TD
@@ -17,21 +17,21 @@ graph TD
         GH[GitHub Scraper]
     end
 
-    subgraph Ingestion Layer
-        Orch[Ingestion Orchestrator]
+    subgraph "Ingestion Layer (LangGraph)"
+        Orch[Ingestion Orchestrator Graph]
         Dedup[Deduplication Scorer]
         Sched[asyncio 6-Hour Scheduler]
     end
 
-    subgraph Storage Layer
-        DB[(SQLite DB)]
-        VectorDB[(Chroma Vector DB)]
+    subgraph "Storage Layer (Neon Postgres)"
+        DB[(Neon Postgres — Relational Tables)]
+        VectorDB[(Neon Postgres — pgvector Indexes)]
     end
 
-    subgraph AI Pipeline Layer
-        Pipeline[LangChain Processing pipeline]
+    subgraph "AI Pipeline Layer (LangGraph)"
+        Pipeline[Processing Pipeline Graph]
         LLM[Groq / Gemini Fallback Manager]
-        Curator[Wiki Curator Pipeline]
+        Curator[Wiki Curator Graph]
     end
 
     HN & DevTo & arXiv & GH --> Orch
@@ -57,18 +57,20 @@ graph TD
   * **Dev.to**: RSS/API endpoints matching tech tags (Python, Web Dev, DevOps, AI, Security).
   * **arXiv**: Public Atom feeds for Computer Science and Machine Learning preprints (`cs.AI`, `cs.LG`, `cs.SE`).
   * **GitHub**: Scrapes daily trending repository metrics (languages, descriptions, stars).
+* **Architecture**: Implemented as a 6-node LangGraph StateGraph (`load_recent_context → fetch_hn → fetch_devto → fetch_arxiv → fetch_github → commit_all`).
 
 ### 2. Duplication & Overlap Control
 * Prevents data pollution through a two-tiered check:
-  * **Unique URL Index**: SQLite constraint blocks duplicate URLs on insertion.
+  * **Unique URL Index**: Postgres constraint blocks duplicate URLs on insertion.
   * **Fuzzy Title Scorer**: Computes Token-based Jaccard similarity. Stories with **>80% similarity** to articles ingested in the last 24 hours are skipped, maintaining diverse topics.
 
 ### 3. Asynchronous Scheduler
 * Integrates a non-blocking `asyncio` task loop running inside the FastAPI lifespan context.
-* Polls data feeds automatically every **6 hours** and sequences three distinct phases: Ingestion -> News Summarization -> Auto-Wiki Curation.
+* Polls data feeds automatically every **6 hours** and sequences five phases: Ingestion → News Summarization → Vector Indexing → Wiki Curation → Trending Analysis.
 
 ### 4. AI Summarization & Classification Pipeline
 * Leverages LangChain's `RunnableSequence` to transform raw descriptions/abstracts into structured, professional markdown.
+* **Architecture**: Implemented as a 5-node LangGraph StateGraph with conditional routing (`fetch_pending → process_news → save_news → process_github → save_github`).
 * **Unified Summary Format**:
   * **Overview**: Concise 1-2 sentence introduction of the news item.
   * **Key Details**: 3-4 bullet-point takeaways.
@@ -85,16 +87,18 @@ graph TD
 ### 6. Dev Wiki Compiler
 * Automatically compiles a dictionary of technical concepts on-demand.
 * Extracts structured definitions, context on why the term is trending, and verified official resource links.
+* Uses native Postgres JSONB for `related_links` storage.
 
-### 7. Local Vector Store & Semantic Search Engine
-* Connects to a persistent local Chroma DB database located at `Backend/chroma_db/`.
-* Converts text definitions into vectors using Google GenAI's **`gemini-embedding-2`** embeddings model.
+### 7. Unified Vector Store & Semantic Search Engine (pgvector)
+* Unified on **Neon Postgres with pgvector** — no separate vector database needed.
+* Converts text definitions into vectors using Google GenAI's **`gemini-embedding-2`** embeddings model via `langchain-postgres` PGVector integration.
 * Performs semantic cosine similarity lookup: returns matching concept glossary definitions based on meaning, bypassing strict keyword matches (e.g., query `"stateful multi-agent systems"` matches `"LangGraph"`).
 
-### 8. Automated Wiki Curation
+### 8. Automated Wiki Curation (LangGraph)
+* **Architecture**: Implemented as a 3-node LangGraph StateGraph with conditional routing (`extract_terms → filter_existing → generate_definitions`).
 * Scans news stories summarized during the scheduler cycle.
 * Prompts the LLM (using the fallback chain) to extract key new developer terms or libraries.
-* Automatically creates wiki definitions for missing concepts and indexes them in Chroma DB, building a self-expanding technical glossary.
+* Automatically creates wiki definitions for missing concepts and indexes them via pgvector, building a self-expanding technical glossary.
 
 ### 9. Trending Topics Engine
 * Scans news updates processed in the last 7 days and tallies keyword references of all active Wiki terms.
@@ -105,11 +109,11 @@ graph TD
 * Employs the LLM chain to compile a professional, editorial developer digest report in markdown, which is saved in `weekly_reports`.
 
 ### 11. Conversational Memory & Persistent Chatbot
-* Connects the `/api/ai/chat` endpoint to a persistent SQLite `chat_messages` table mapping message threads to user session IDs.
+* Connects the `/api/ai/chat` endpoint to a persistent Postgres `chat_messages` table mapping message threads to user session IDs.
 * Pulls current dialogue logs dynamically, maintaining memory context across multiple message turns.
 
 ### 12. Context Retrieval & Structured Citation Engine
-* Executes parallel semantic retrievals on Chroma collections (`wiki_entries` and `news_items`).
+* Executes parallel semantic retrievals on pgvector collections (`wiki_entries` and `news_items`).
 * Directs the LLM router to ground answers in the fetched materials, forcing numeric references (like `[1]`, `[2]`), and returns a list of verified clickable URLs in the JSON API payload.
 
 ### 13. Technology Evolution Timelines
@@ -117,7 +121,7 @@ graph TD
 
 ### 14. Related Articles Recommendations
 * Enables semantic recommender widgets on articles.
-* Queries vector similarity indexes in Chroma to fetch 3 semantically close articles for every news item.
+* Queries pgvector similarity indexes to fetch 3 semantically close articles for every news item.
 
 ### 15. Premium Markdown & UI Curation Engine
 * Employs custom React parser modules to translate structured Markdown (headers, lists, bold/italic inline tags, dividers, code blocks, and matrices) into premium web UI components.
@@ -141,7 +145,7 @@ graph TD
 | **GET** | `/api/wiki/{term}` | Fetch case-insensitive wiki entries. | Dev Wiki |
 | **POST** | `/api/wiki/generate` | Dispatch LangChain worker to generate concept definitions. | Dev Wiki |
 | **GET** | `/api/wiki/{term}/timeline` | Generate chronological evolution timeline for a tech term. | Dev Wiki |
-| **GET** | `/api/search` | Unified parallel search querying news & repos (SQL) and wiki concepts (Chroma). | Search |
+| **GET** | `/api/search` | Unified parallel search querying news & repos (SQL) and wiki concepts (pgvector). | Search |
 | **GET** | `/api/news/{news_id}/related` | Retrieve semantically related news articles. | News |
 | **GET** | `/api/reports/weekly` | Retrieve historical list of weekly reports. | Reports |
 | **GET** | `/api/reports/weekly/{report_id}` | Retrieve details of a specific weekly report. | Reports |
@@ -151,22 +155,89 @@ graph TD
 
 ---
 
-## ⚙️ Recent Backend Updates & Enhancements (v0.5.1-patch)
+## 🗃️ Storage Architecture (v2.0)
 
-The backend engine has been upgraded with the following structural improvements:
+### Neon Postgres (Unified Database)
 
-### 1. Robust API Failover Handling
-* **Broad Exception Coverage**: Updated the primary Groq LLM chain wrapper's `with_fallbacks` configuration in [llm.py](file:///d:/Dev-Patrika/Backend/app/services/processing/llm.py) to catch `Exception` instead of default narrowing. This guarantees silent, immediate failover to Google Gemini on any Groq network timeout, authorization failure, or API rate limit event.
+All relational data and vector embeddings are stored in a single **Neon** serverless Postgres instance with **pgvector** extension.
 
-### 2. Conversational Model List Cleanup
-* **Dropdown Selection Optimization**: Removed the Hugging Face `mistral-7b-instruct` model from the active choices list in [ai.py](file:///d:/Dev-Patrika/Backend/app/routers/ai.py).
-* **LangChain Integration**: Kept backend resolution support in [chat_service.py](file:///d:/Dev-Patrika/Backend/app/services/chat/chat_service.py) via `HuggingFaceEndpoint` (with Gemini as fallback if token/credentials are missing) to maintain backwards compatibility.
+| Table | Purpose | Key Columns |
+|:---|:---|:---|
+| `news_items` | Ingested tech news | title, url, summary, category, source, freshness_tag |
+| `github_radar` | Trending GitHub repos | repo_name, repo_url, stars_count, why_it_matters_summary |
+| `wiki_entries` | Dev Wiki glossary | term, definition, why_trending, related_links (JSONB) |
+| `trending_topics` | Trend momentum tracker | term, frequency, trend_direction |
+| `weekly_reports` | AI-compiled weekly digests | title, content (markdown), start_date, end_date |
+| `chat_messages` | Conversational chatbot history | session_id, role, content |
+| `langchain_pg_collection` | pgvector collection metadata | name, uuid, cmetadata |
+| `langchain_pg_embedding` | pgvector embeddings | document, embedding, collection_id |
 
-### 3. Rate-Limit Recovery & Batch Processing Chunking
-* **Batch Sequencing**: Transitioned parallel asynchronous gathers in [pipeline.py](file:///d:/Dev-Patrika/Backend/app/services/processing/pipeline.py) (for news and repositories processing) to sequential batches of size 5 with a 2-second cooldown pause.
-* **Auto-Retry & Backoff**: Added active exception catching for `429` (Rate Limit) errors. When rate-limited, the system suspends execution for 120 seconds before attempting a retry, avoiding pipeline crashes during scheduled tasks.
-* **Circuit Breaker Design**: Added a maximum retry threshold. If retries fail twice, the process logs the traceback and continues with the remaining items instead of crashing the scheduler.
+### Connection Details
+* **Pooled connection** via Neon's PgBouncer proxy (`-pooler` endpoint)
+* `pool_pre_ping=True` for serverless connection liveness checks
+* `pool_size=5`, `max_overflow=10` for connection management
 
-### 4. Vector Embedding Quota Optimization
-* **Pre-Embedding Duplicate Verification**: Integrated database checking (`db.get(ids=[str(item.id)])`) in [chroma_service.py](file:///d:/Dev-Patrika/Backend/app/services/vectorstore/chroma_service.py) to check if an item's embedding exists in the Chroma collection before invoking Google's `gemini-embedding-2` API. This drastically reduces API quota consumption during bulk synchronizations.
+---
 
+## 🔄 LangGraph Pipeline Architecture (v2.0)
+
+All core AI pipelines are now **LangGraph StateGraphs**, providing:
+- **Node-level traceability** via LangSmith
+- **Typed state** flowing between nodes (TypedDict)
+- **Conditional routing** for smart execution paths
+- **Backward-compatible public APIs** — scheduler unchanged
+
+### Processing Pipeline
+```mermaid
+graph LR
+    START --> fetch_pending
+    fetch_pending -->|has_news| process_news
+    fetch_pending -->|has_github| process_github
+    fetch_pending -->|no_items| END_node["END"]
+    process_news --> save_news
+    save_news -->|has_github| process_github
+    save_news -->|no_github| END_node
+    process_github --> save_github
+    save_github --> END_node
+```
+
+### Wiki Curator Pipeline
+```mermaid
+graph LR
+    START --> extract_terms
+    extract_terms --> filter_existing
+    filter_existing -->|has_missing| generate_definitions
+    filter_existing -->|no_missing| END_node["END"]
+    generate_definitions --> END_node
+```
+
+### Ingestion Orchestrator
+```mermaid
+graph LR
+    START --> load_recent_context
+    load_recent_context --> fetch_hn
+    fetch_hn --> fetch_devto
+    fetch_devto --> fetch_arxiv
+    fetch_arxiv --> fetch_github
+    fetch_github --> commit_all
+    commit_all --> END_node["END"]
+```
+
+---
+
+## ⚙️ Migration History
+
+### v2.0 — Neon + pgvector + LangGraph (Phase 1–3)
+
+| Phase | Change | Status |
+|:---|:---|:---|
+| **Phase 0** | Backup SQLite + enable pgvector on Neon | ✅ Complete |
+| **Phase 1** | SQLite → Neon Postgres (relational data) | ✅ Complete |
+| **Phase 2** | Chroma DB → pgvector (vector embeddings) | ✅ Complete |
+| **Phase 3** | Sequential pipelines → LangGraph StateGraphs | ✅ Complete |
+
+### v0.5.1-patch — Stability & Performance
+
+* **Robust API Failover**: Broad exception coverage in LLM fallback chain.
+* **Rate-Limit Recovery**: Batch processing with 120s backoff and max retry threshold.
+* **Vector Embedding Optimization**: Pre-embedding duplicate verification to reduce API quota usage.
