@@ -20,7 +20,7 @@ graph TD
     subgraph "Ingestion Layer (LangGraph)"
         Orch[Ingestion Orchestrator Graph]
         Dedup[Deduplication Scorer]
-        Sched[asyncio 6-Hour Scheduler]
+        Sched[asyncio 4-Hour Scheduler]
     end
 
     subgraph "Storage Layer (Neon Postgres)"
@@ -53,9 +53,9 @@ graph TD
 
 ### 1. Multi-Source Ingestion Engine
 * Automatically crawls and extracts tech updates from the developer ecosystem:
-  * **Hacker News**: Firebase REST API (top stories).
-  * **Dev.to**: RSS/API endpoints matching tech tags (Python, Web Dev, DevOps, AI, Security).
-  * **arXiv**: Public Atom feeds for Computer Science and Machine Learning preprints (`cs.AI`, `cs.LG`, `cs.SE`).
+  * **Hacker News**: Firebase REST API (top stories) — **10 items per cycle**.
+  * **Dev.to**: RSS/API endpoints matching tech tags (Python, Web Dev, DevOps, AI, Security) — **3 items per tag**.
+  * **arXiv**: Public Atom feeds for Computer Science and Machine Learning preprints (`cs.AI`, `cs.LG`, `cs.SE`) — **5 items per cycle**.
   * **GitHub**: Scrapes daily trending repository metrics (languages, descriptions, stars).
 * **Architecture**: Implemented as a 6-node LangGraph StateGraph (`load_recent_context → fetch_hn → fetch_devto → fetch_arxiv → fetch_github → commit_all`).
 
@@ -66,7 +66,8 @@ graph TD
 
 ### 3. Asynchronous Scheduler
 * Integrates a non-blocking `asyncio` task loop running inside the FastAPI lifespan context.
-* Polls data feeds automatically every **6 hours** and sequences five phases: Ingestion → News Summarization → Vector Indexing → Wiki Curation → Trending Analysis.
+* Polls data feeds automatically every **4 hours** and sequences five phases: Ingestion → News Summarization → Vector Indexing → Wiki Curation → Trending Analysis.
+* Ingestion limits are intentionally kept low per cycle to prevent API quota exhaustion across LLM providers (Groq, Gemini). Smaller, more frequent batches allow rate limits to recover between cycles.
 
 ### 4. AI Summarization & Classification Pipeline
 * Leverages LangChain's `RunnableSequence` to transform raw descriptions/abstracts into structured, professional markdown.
@@ -127,6 +128,14 @@ graph TD
 * Employs custom React parser modules to translate structured Markdown (headers, lists, bold/italic inline tags, dividers, code blocks, and matrices) into premium web UI components.
 * Automatically converts unformatted milestone charts into clean, tabular grids under evolution timelines and weekly digests.
 * Dynamically normalizes all external links (Wiki references, GitHub redirects) to enforce absolute protocols (`https://`), preventing local path breakage and ensuring seamless routing.
+
+### 16. Authentication & Session Management
+* **JWT-based authentication** with Access + Refresh token strategy.
+* **Access Token Expiry**: 7 days (`10080 minutes`) — keeps users logged in for extended sessions without re-authentication.
+* **Refresh Token Expiry**: 7 days — allows silent token renewal.
+* **Multi-provider OAuth**: Supports Google OAuth and GitHub OAuth login flows.
+* **OTP Email Login**: Passwordless login via Brevo-powered email OTP (10-minute expiry).
+* **Algorithm**: HS256 symmetric JWT signing.
 
 ---
 
