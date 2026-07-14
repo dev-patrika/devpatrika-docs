@@ -92,8 +92,8 @@ graph TD
 
 ### 7. Unified Vector Store & Semantic Search Engine (pgvector)
 * Unified on **Neon Postgres with pgvector** — no separate vector database needed.
-* Converts text definitions into vectors using Google GenAI's **`gemini-embedding-2`** embeddings model via `langchain-postgres` PGVector integration.
-* Performs semantic cosine similarity lookup: returns matching concept glossary definitions based on meaning, bypassing strict keyword matches (e.g., query `"stateful multi-agent systems"` matches `"LangGraph"`).
+* Converts text definitions and articles into vectors using Hugging Face's Cloud Inference API with the **`BAAI/bge-small-en-v1.5`** embeddings model (384 dimensions) via `langchain-postgres` PGVector integration.
+* Performs semantic cosine similarity lookup: returns matching concept glossary definitions and related news items based on meaning, bypassing strict keyword matches (e.g., query `"stateful multi-agent systems"` matches `"LangGraph"`).
 
 ### 8. Automated Wiki Curation (LangGraph)
 * **Architecture**: Implemented as a 3-node LangGraph StateGraph with conditional routing (`extract_terms → filter_existing → generate_definitions`).
@@ -161,6 +161,7 @@ graph TD
 | **POST** | `/api/reports/weekly/compile` | Manually compile a new weekly developer report. | Reports |
 | **GET** | `/api/ai/models` | Retrieve lists of supported active LLM models. | AI Engine |
 | **POST** | `/api/ai/chat` | Conversational RAG chatbot with history memory and citations. | AI Engine |
+| **POST** | `/api/feedback` | Submit user feedback securely via Brevo SMTP backend delivery. | System |
 
 ---
 
@@ -179,7 +180,7 @@ All relational data and vector embeddings are stored in a single **Neon** server
 | `weekly_reports` | AI-compiled weekly digests | title, content (markdown), start_date, end_date |
 | `chat_messages` | Conversational chatbot history | session_id, role, content |
 | `langchain_pg_collection` | pgvector collection metadata | name, uuid, cmetadata |
-| `langchain_pg_embedding` | pgvector embeddings | document, embedding, collection_id |
+| `langchain_pg_embedding` | pgvector embeddings (384-dim) | document, embedding (vector), collection_id |
 
 ### Connection Details
 * **Pooled connection** via Neon's PgBouncer proxy (`-pooler` endpoint)
@@ -236,7 +237,7 @@ graph LR
 
 ## ⚙️ Migration History
 
-### v2.0 — Neon + pgvector + LangGraph (Phase 1–3)
+### v2.0 — Neon + pgvector + LangGraph (Phase 1–5)
 
 | Phase | Change | Status |
 |:---|:---|:---|
@@ -244,9 +245,22 @@ graph LR
 | **Phase 1** | SQLite → Neon Postgres (relational data) | ✅ Complete |
 | **Phase 2** | Chroma DB → pgvector (vector embeddings) | ✅ Complete |
 | **Phase 3** | Sequential pipelines → LangGraph StateGraphs | ✅ Complete |
+| **Phase 4** | LangSmith Tracing & RAG graph observability | ✅ Complete |
+| **Phase 5** | Cutover & Cleanup (Removed SQLite DB & Chroma dependencies, case-insensitive `.ilike()` upgrades) | ✅ Complete |
 
-### v0.5.1-patch — Stability & Performance
+### v2.1-patch — Hugging Face API Embeddings Migration
 
-* **Robust API Failover**: Broad exception coverage in LLM fallback chain.
-* **Rate-Limit Recovery**: Batch processing with 120s backoff and max retry threshold.
-* **Vector Embedding Optimization**: Pre-embedding duplicate verification to reduce API quota usage.
+* **Zero-RAM Footprint Embeddings:** Migrated embeddings from Google `gemini-embedding-2` to Hugging Face Cloud Inference API using the `BAAI/bge-small-en-v1.5` model (384 dimensions). This saves LLM rate limits and maintains a **0 MB extra RAM footprint** to fit within Render's 512 MB free tier.
+* **Active Router Endpoint:** Configured requests to go through Hugging Face's active router proxy (`router.huggingface.co/hf-inference`) to prevent local DNS and connection timeouts.
+* **Robust DB Migration Script:** Implemented a backend migration script to drop old 768-dim PGVector tables and automatically re-embed all wiki concepts and news items into 384-dim vectors.
+
+### v0.6.0-beta — LangGraph Multi-Agent Workflows
+
+*   **Multi-Agent Transition:** Refactored the old sequential scheduler and chat pipeline into active LangGraph agents:
+    *   **DailyBriefAgent:** Coordinates news ingestion, AI summaries, and publishing.
+    *   **WikiCuratorAgent:** Performs semantic cosine-distance name checking on emerging terms, executing an LLM **Merge Prompt** to resolve glossary conflicts automatically.
+    *   **ResearchDigestAgent:** Extracts text from arXiv preprints PDFs, splits them into recursive chunks, and translates them.
+    *   **ExplainWhyAgent:** Stateful ReAct RAG chatbot query router.
+*   **Direct Feedback Channel:** Implemented an authenticated feedback submission API routed directly via the **Brevo SMTP API**.
+*   **View Layout Toggle:** Enabled List View and Tiles View toggles with browser persistence.
+*   **Simple AI Language:** Updated LLM summarizer system prompts to strictly enforce plain, straightforward English (no flowery academic prose).
