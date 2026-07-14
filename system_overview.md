@@ -161,6 +161,7 @@ graph TD
 | **POST** | `/api/reports/weekly/compile` | Manually compile a new weekly developer report. | Reports |
 | **GET** | `/api/ai/models` | Retrieve lists of supported active LLM models. | AI Engine |
 | **POST** | `/api/ai/chat` | Conversational RAG chatbot with history memory and citations. | AI Engine |
+| **POST** | `/api/feedback` | Submit user feedback securely via Brevo SMTP backend delivery. | System |
 
 ---
 
@@ -252,3 +253,14 @@ graph LR
 * **Zero-RAM Footprint Embeddings:** Migrated embeddings from Google `gemini-embedding-2` to Hugging Face Cloud Inference API using the `BAAI/bge-small-en-v1.5` model (384 dimensions). This saves LLM rate limits and maintains a **0 MB extra RAM footprint** to fit within Render's 512 MB free tier.
 * **Active Router Endpoint:** Configured requests to go through Hugging Face's active router proxy (`router.huggingface.co/hf-inference`) to prevent local DNS and connection timeouts.
 * **Robust DB Migration Script:** Implemented a backend migration script to drop old 768-dim PGVector tables and automatically re-embed all wiki concepts and news items into 384-dim vectors.
+
+### v0.6.0-beta — LangGraph Multi-Agent Workflows
+
+*   **Multi-Agent Transition:** Refactored the old sequential scheduler and chat pipeline into active LangGraph agents:
+    *   **DailyBriefAgent:** Coordinates news ingestion, AI summaries, and publishing.
+    *   **WikiCuratorAgent:** Performs semantic cosine-distance name checking on emerging terms, executing an LLM **Merge Prompt** to resolve glossary conflicts automatically.
+    *   **ResearchDigestAgent:** Extracts text from arXiv preprints PDFs, splits them into recursive chunks, and translates them.
+    *   **ExplainWhyAgent:** Stateful ReAct RAG chatbot query router.
+*   **Direct Feedback Channel:** Implemented an authenticated feedback submission API routed directly via the **Brevo SMTP API**.
+*   **View Layout Toggle:** Enabled List View and Tiles View toggles with browser persistence.
+*   **Simple AI Language:** Updated LLM summarizer system prompts to strictly enforce plain, straightforward English (no flowery academic prose).
