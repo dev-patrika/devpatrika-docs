@@ -80,10 +80,11 @@ graph TD
 * **GitHub "Why it Matters" Radar**: Evaluates trending repos to detail architectural highlights and developer-focused summaries.
 
 ### 5. Multi-Provider LLM Fallback (Failover Engine)
-* Uses native LangChain model fallbacks to guarantee uptime:
-  * **Primary Model**: Groq (`openai/gpt-oss-120b`).
-  * **Secondary Backup**: Google Gemini (`gemini-2.5-flash`).
-  * If the primary model encounters rate limits, timeouts, or authentication issues, it fails over to the backup instantly and silently.
+* Uses native LangChain model fallbacks to guarantee 100% uptime:
+  * **Supported Active Models**:
+    * **Google**: `gemini-2.5-flash` (Default), `gemini-2.5-pro`
+    * **Groq**: `openai/gpt-oss-120b`, `openai/gpt-oss-20b`
+  * If the primary selected model encounters rate limits, timeouts, or authentication issues, it fails over to `gemini-2.5-flash` instantly and silently.
 
 ### 6. Dev Wiki Compiler
 * Automatically compiles a dictionary of technical concepts on-demand.
@@ -111,10 +112,11 @@ graph TD
 
 ### 11. Conversational Memory & Persistent Chatbot
 * Connects the `/api/ai/chat` endpoint to a persistent Postgres `chat_messages` table mapping message threads to user session IDs.
-* Pulls current dialogue logs dynamically, maintaining memory context across multiple message turns.
+* Pulls current dialogue logs dynamically, maintaining extended memory context across **20 messages (10 complete Q&A turns)**.
 
 ### 12. Context Retrieval & Structured Citation Engine
-* Executes parallel semantic retrievals on pgvector collections (`wiki_entries` and `news_items`).
+* Executes multi-source semantic retrievals on pgvector collections (`wiki_entries` and `news_items`) plus exact/keyword searches on `github_radar` trending repositories.
+* Implements dynamic fallback thresholding (0.25 → 0.15) to guarantee rich context retrieval.
 * Directs the LLM router to ground answers in the fetched materials, forcing numeric references (like `[1]`, `[2]`), and returns a list of verified clickable URLs in the JSON API payload.
 
 ### 13. Technology Evolution Timelines
@@ -247,6 +249,14 @@ graph LR
 | **Phase 3** | Sequential pipelines → LangGraph StateGraphs | ✅ Complete |
 | **Phase 4** | LangSmith Tracing & RAG graph observability | ✅ Complete |
 | **Phase 5** | Cutover & Cleanup (Removed SQLite DB & Chroma dependencies, case-insensitive `.ilike()` upgrades) | ✅ Complete |
+
+### v2.2-patch — Multi-Model Selection, Extended Memory & Multi-Source RAG Refinement
+
+* **Frontend UI & State Sync Fix**: Fixed `selectedModel` initial state sync in `chatStore.js` and `FloatingChat.jsx` to default to `gemini-2.5-flash` and automatically keep the Zustand state matched with available models returned by `/api/ai/models`.
+* **Groq Model Verification**: Verified live Groq API key models and updated `/api/ai/models` and `chat_service.py` to route Groq calls to `openai/gpt-oss-120b` (100% active on Groq API), fixing the 404 `model_not_found` error.
+* **Extended Conversational Memory**: Expanded persistent Chat memory sliding window from 10 to **20 messages (10 Q&A turns)** to preserve context during long technical discussions.
+* **Multi-Source RAG Enrichment**: Refined streaming RAG context retrieval in `chat_service.py` to query **GitHub Radar repositories** alongside `wiki_entries` and `news_items`, with dynamic threshold fallback (0.25 → 0.15).
+* **HEAD Request Support for Uptime Bot**: Configured `/health`, `/api/health`, and `/` endpoints to support `HEAD` HTTP method, allowing 24/7 ping bots to keep Render free tier backend awake with 0 MB payload overhead.
 
 ### v2.1-patch — Hugging Face API Embeddings Migration
 
